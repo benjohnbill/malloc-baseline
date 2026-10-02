@@ -1,141 +1,98 @@
-# 📘 Docker + VSCode DevContainer 기반 C 개발 환경 구축 가이드 (MallocLab)
+# malloc-baseline
 
-이 문서는 **Windows**와 **macOS** 사용자가 Docker와 VSCode DevContainer 기능을 활용하여 C 개발 및 디버깅 환경을 빠르게 구축할 수 있도록 도와줍니다.
+CS:APP 책의 implicit free list 코드로 만든 **팀 비교용 기준 allocator**예요. 팀원이 같은 코드를 각자 머신에서 돌려서, 머신 속도 차이를 걷어낸 상태로 서로의 코드를 비교하려고 만들었어요. 공식 순위가 있는 것이 아니라, 팀 안에서 더 높이 가려는 용도예요.
 
-[**주의**] 기존 차수와 다른 점만 확인하시면 4장부터 6장만 확인하시면 됩니다.
+> **주의: `malloc-lab/mm.c`에는 책 연습문제 9.8, 9.9의 해답(`find_fit`, `place`)이 들어 있어요.**
+> 그 이슈를 직접 풀기 전이라면 `mm.c`를 열지 마세요. 아래 "바로 해 보기"는 파일을 열지 않고도 할 수 있어요.
 
----
-
-## 1. Docker란 무엇인가요?
-
-**Docker**는 애플리케이션을 어떤 컴퓨터에서든 **동일한 환경에서 실행**할 수 있게 도와주는 **가상화 플랫폼**입니다.  
-
-Docker는 다음 구성요소로 이루어져 있습니다:
-
-- **Docker Engine**: 컨테이너를 실행하는 핵심 서비스
-- **Docker Image**: 컨테이너 생성에 사용되는 템플릿 (레시피 📃)
-- **Docker Container**: 이미지를 기반으로 생성된 실제 실행 환경 (요리 🍜)
-
-### ✅ AWS EC2와의 차이점
-
-| 구분 | EC2 같은 VM | Docker 컨테이너 |
-|------|-------------|-----------------|
-| 실행 단위 | OS 포함 전체 | 애플리케이션 단위 |
-| 실행 속도 | 느림 (수십 초 이상) | 매우 빠름 (거의 즉시) |
-| 리소스 사용 | 무거움 | 가벼움 |
-
----
-
-## 2. VSCode DevContainer란 무엇인가요?
-
-**DevContainer**는 VSCode에서 Docker 컨테이너를 **개발 환경**처럼 사용할 수 있게 해주는 기능입니다.
-
-- 코드를 실행하거나 디버깅할 때 **컨테이너 내부 환경에서 동작**
-- 팀원 간 **환경 차이 없이 동일한 개발 환경 구성** 가능
-- `.devcontainer` 폴더에 정의된 설정을 VSCode가 읽어 자동 구성
-
----
-
-## 3. Docker Desktop 설치하기
-
-1. Docker 공식 사이트에서 설치 파일 다운로드:  
-   👉 [https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
-
-2. 설치 후 Docker Desktop 실행  
-   - Windows: Docker 아이콘이 트레이에 떠야 함  
-   - macOS: 상단 메뉴바에 Docker 아이콘 확인
-
----
-
-## 4. 프로젝트 파일 다운로드 (히스토리 없이)
-
-터미널(CMD, PowerShell, zsh 등)에서 아래 명령어로 프로젝트 폴더만 내려받습니다:
+## 바로 해 보기
 
 ```bash
-git clone --depth=1 https://github.com/krafton-jungle/malloc_lab_docker.git
+git clone <이 repo의 주소>
+cd malloc-baseline/malloc-lab
+make && ./mdriver -v
 ```
 
-- `--depth=1` 옵션은 git commit 히스토리를 생략하고 **최신 파일만 가져옵니다.**
+Docker 환경 설정이 필요하면 `README.upstream.md`(upstream 안내 그대로)를 따르세요.
 
-### 📂 다운로드 후 폴더 구조 설명
+기대하는 결과예요. 처리량(`Kops`, `thru`)은 머신마다 달라요.
 
-```
-malloc_lab_docker/
-├── .devcontainer/
-│   ├── devcontainer.json      # VSCode에서 컨테이너 환경 설정
-│   └── Dockerfile             # C 개발 환경 이미지 정의
-│
-├── .vscode/
-│   ├── launch.json            # 디버깅 설정 (F5 실행용)
-│   └── tasks.json             # 컴파일 자동화 설정
-│
-├── malloc-lab
-│   ├── short1-bal.rep          # 테스트 케이스
-│   ├── Makefile                # 과제를 컴파일하고 테스트하기 위한 파일
-│   └── README.md               # malloc-lab 과제 설명
-│
-└── README.md  # 설치 및 사용법 설명 문서
-```
+- 11개 trace가 모두 `yes`예요.
+- util이 trace별로 `99 99 99 100 66 92 92 55 51 27 34`, 평균 `74%`예요. **util은 시간과 무관해서 어느 머신에서도 같아야 해요.** 다르다면 코드나 trace가 달라진 거예요.
+- `Perf index = 44 (util) + N (thru)`에서 앞의 44도 같아야 하고, N은 머신 속도에 따라 달라요.
 
----
+## mm.c의 구간 표시
 
-## 5. VSCode에서 해당 프로젝트 폴더 열기
+어디까지가 책이고 어디부터가 추가인지를 `mm.c` 안의 주석으로 구분해 뒀어요.
 
-1. VSCode를 실행
-2. `파일 → 폴더 열기`로 방금 클론한 `malloc_lab_docker` 폴더를 선택
+| 표시 | 뜻 | 해당 구간 |
+|---|---|---|
+| `@BOOK` | 책 코드를 공백만 다듬어 그대로 옮긴 구간 | Fig 9.43 ~ 9.47, Sol 9.9 |
+| `@BOOK-FIX` | 책 코드에서 줄 하나만 지운 구간 | Sol 9.8 (인쇄 오류인 `#endif` 삭제) |
+| `@ADDED` | 책에 없어서 우리가 넣은 구간 | A1 ~ A8 |
 
----
+책 코드만으로는 `mdriver`가 돌아가지 않아서 넣은 것이 `@ADDED`예요. 하나씩 이유가 있어요.
 
-## 6. 개발 컨테이너: 컨테이너에서 열기
+| 번호 | 내용 | 이유 |
+|---|---|---|
+| A1 | `#include`들 | starter의 헤더. `mem_sbrk`, `memcpy`, `size_t`가 여기서 와요 |
+| A2 | `team_t team` | starter의 정의. `mdriver`가 읽어요 |
+| A3 | `static char *heap_listp;` | 책은 Fig 9.42 도해에만 그려 두고 코드에는 없어요 |
+| A4 ~ A7 | `extend_heap`, `coalesce`, `find_fit`, `place`의 prototype | 정의보다 먼저 호출해요. gcc 15는 암시적 선언을 오류로 처리해요 |
+| A8 | `mm_realloc` | 책에 없고 `mdriver`가 호출해요 |
 
-1. VSCode에서 `Ctrl+Shift+P` (Windows/Linux) 또는 `Cmd+Shift+P` (macOS)를 누릅니다.
-2. 명령어 팔레트에서 `Dev Containers: Reopen in Container`를 선택합니다.
-3. 이후 컨테이너가 자동으로 실행되고 빌드됩니다. 처음 컨테이너를 열면 빌드하는 시간이 오래걸릴 수 있습니다. 빌드 후, 프로젝트가 **컨테이너 안에서 실행됨**.
+몇 가지 배경이에요.
 
----
+- `find_fit`과 `place`는 책이 연습문제(9.8, 9.9)로 남겨 뒀고, 해답은 p.920에 있어요. 9.8 해답에는 짝 없는 `#endif`가 인쇄되어 있어서 그 한 줄만 지웠어요.
+- starter의 `mm_realloc`을 그대로 쓰면 13개 trace를 통과하지만 우연이에요. 책의 블록 구조에서는 payload 바로 앞 8바이트가 길이가 아니기 때문이에요. 그래서 복사 길이를 header에서 직접 계산하는 A8을 새로 썼어요.
+- `memlib.c`는 책의 Figure 9.41이 아니라 malloc-lab에 들어 있는 것을 그대로 써요. 책의 것은 `mem_reset_brk`, `mem_heap_lo`, `mem_heap_hi`가 없어서 `mdriver`가 링크되지 않아요.
 
-## 7. C 파일에 브레이크포인트 설정 후 디버깅 (F5)
+## 내 코드와 비교하기
 
-이제 본격적으로 문제를 풀 시간입니다. `malloc-lab/README.md` 파일을 참조하셔서 rbtree 문제를 풀어보세요.
-
-C 언어로 문제를 풀다가 디버깅이 필요하시면 소스코드에 BreakPoint를 설정한 뒤에 키보드에서 `F5`를 눌러 디버깅을 시작할 수 있습니다.`F5`를 누르면 `malloc-lab`폴더에서 `mdriver -V -f short1-bal.rep` 를 실행하여 테스트 코드를 디버깅 모드로 실행합니다.
-- 참고로 변수, 메모리, 스택, 출력 등을 VSCode에서 확인할 수도 있습니다.
-
----
-
-## 8. 새로운 Git 리포지토리에 Commit & Push 하기
-
-금주 프로젝트를 개인 Git 리포와 같은 다른 리포지토리에 업로드하려면, 기존 Git 연결을 제거하고 새롭게 초기화해야 합니다.
-
-### ✅ 완전히 새로운 Git 리포로 업로드하는 방법
-
-아래 명령어를 순서대로 실행하세요:
+`python3`가 필요해요. 이 repo의 파일은 건드리지 않고 임시 디렉토리에서 빌드해요.
 
 ```bash
-rm -rf .git
-git init
-git remote add origin https://github.com/myusername/my-new-repo.git
-git add .
-git commit -m "Clean start"
-git push -u origin main
+tools/bench.sh                 # 이 머신의 baseline 눈금 (10회, 약 100초)
+tools/bench.sh 내_mm.c         # baseline과 내 코드를 번갈아 10회씩 (약 3분)
 ```
 
-### 📌 설명
+출력에서 볼 것은 이래요.
 
-- `rm -rf .git`: 기존 Git 기록과 연결을 완전히 삭제합니다.
-- `git init`: 현재 폴더를 새로운 Git 리포지토리로 초기화합니다.
-- `git remote add origin ...`: 새로운 리포지토리 주소를 origin으로 등록합니다.
-- `git add .` 및 `git commit`: 모든 파일을 커밋합니다.
-- `git push`: 새로운 리포에 최초 업로드(Push)합니다.
+- **머신 계수**: 이 머신의 baseline ÷ 기준값(아래). 1보다 작으면 기준 머신보다 느린 머신이에요.
+- **비율 r**: 내 코드 ÷ baseline. 같은 머신에서 번갈아 잰 값이라 머신 속도가 상쇄돼요. 코드를 비교할 때 가장 믿을 만한 수치예요.
+- **환산 추정**: `60 × util + 40 × min(1, r × 기준값 ÷ 600)`. mdriver의 점수식에서 처리량 항만 기준 머신 눈금으로 바꾼 거예요.
 
-이 과정을 거치면 기존 리포와의 연결은 완전히 제거되고, **새로운 독립적인 프로젝트로 관리**할 수 있습니다.
+환산 추정을 읽을 때 알아 둘 점이에요.
 
-## 🎉 끝
+1. **눈금이지 정답이 아니에요.** 채점 머신의 점수를 예측하지 않아요. 기준 머신이 2배 빠르면 처리량 항의 비중도 2배가 되기 때문에, 기준값을 한 번 정해서 모두가 같은 값을 써요.
+2. **처리량 항은 근사예요.** "baseline 대비 속도 비는 머신이 달라도 같다"는 가정에 기대요. 캐시나 메모리가 병목인 코드는 머신에 따라 비가 어긋날 수 있어요. util 항은 정확해요.
+3. **포화 지점이 있어요.** 처리량 점수는 600 Kops/s에서 40점 만점으로 막혀요. 기준값 기준으로 r이 약 3.7 이상이면 포화돼서, 그 위로는 속도를 올려도 점수가 오르지 않고 util만 점수를 올려요. 이때도 r은 계속 비교할 수 있어요.
 
-이제 Docker와 DevContainer를 활용한 C 개발 환경이 완성되었습니다.
+Perf index 숫자는 머신이 다르면 그대로 비교하면 안 돼요. 점수를 공유할 때는 `bench`가 출력하는 머신 정보 블록을 같이 붙여 주세요.
 
-- (주의) 위 내용은 처음 설치하는 사람을 기준으로 작성된 내용입니다. malloc-lab 폴더에서 있는 프로젝트를 반복적으로 개발할 경우 5에서 7장의 내용만 반복하시면 됩니다.
-- 어떤 운영체제에서든 동일한 환경으로 개발 가능  
-- VSCode 내에서 코드 작성, 컴파일, 디버깅까지 한 번에 가능
+측정할 때는 다른 프로그램을 닫고, 노트북은 전원을 연결해 주세요. 흔들림이 15%를 넘으면 `bench`가 경고하니 다시 재 주세요.
 
----
+더 정확한 방법도 있어요. 코드를 한 머신에 모아서 같은 머신에서 직접 재면, 환산이 필요 없고 `mdriver`가 찍는 Perf index가 그대로 공통 점수예요. 환산은 각자 자기 머신에서 대략 알고 싶을 때 쓰는 약식이에요.
+
+## 기준값
+
+| 항목 | 값 |
+|---|---|
+| 기준 머신 | Intel Core Ultra 7 155H, WSL2 (Linux 6.18), gcc 15.2.0 |
+| baseline 처리량 | 160.2 Kops/s (10회 중앙값, 최소 149.3 ~ 최대 165.8) |
+| 측정일 | 2026-10-02 |
+| baseline 점수 | `Perf index = 44 (util) + 11 (thru) = 55/100` (mdriver 출력) |
+
+기준값(`tools/bench.py`의 `B_REF_KOPS`)은 한 번 정하면 바꾸지 않아요. 바꾸면 모두의 환산 점수가 같이 움직여서 이전 점수와 비교할 수 없게 돼요.
+
+## 검사 도구 (관리하는 사람용)
+
+`mm.c`의 출처 표시가 맞는지 기계로 확인해요. 팀원은 몰라도 돼요.
+
+```bash
+python3 tools/audit.py book --pdf CSAPP.pdf   # @BOOK 구간이 책과 같은지 (pdftotext 필요)
+python3 tools/audit.py added                  # @ADDED 구간이 하나씩 빠질 수 없는지
+```
+
+- `book`은 구간의 공백을 모두 지운 문자열이 책의 코드와 같으면 통과해요. 주석 문구는 비교하고, 책의 줄 번호는 제외해요. PDF는 이 repo에 없고 인자로 받아요.
+- `added`는 `@ADDED` 구간을 하나씩 지우고 빌드해서, 매번 실패해야 통과해요. 실패하면 그 추가는 빠질 수 없다는 뜻이에요.

@@ -8,7 +8,7 @@ CS:APP 책의 implicit free list 코드로 만든 **팀 비교용 기준 allocat
 ## 바로 해 보기
 
 ```bash
-git clone <이 repo의 주소>
+git clone https://github.com/benjohnbill/malloc-baseline.git
 cd malloc-baseline/malloc-lab
 make && ./mdriver -v
 ```
